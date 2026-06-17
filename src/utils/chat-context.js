@@ -11,11 +11,7 @@ export const SESSION_TOKEN_BUDGET = 20_000;
 const sessions = new Map();
 
 function isExpired(session, now = Date.now()) {
-  // Over-budget sessions expire based on startedAt (fixed deadline).
-  // Normal sessions use the sliding lastActivityAt window.
-  const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
-  const anchor = overBudget ? session.startedAt : session.lastActivityAt;
-  return now - anchor > SESSION_IDLE_MS;
+  return now - session.lastActivityAt > SESSION_IDLE_MS;
 }
 
 function createSession(now) {
@@ -110,16 +106,13 @@ export function isOverBudget(userId) {
   return session.tokensUsed >= SESSION_TOKEN_BUDGET;
 }
 
-// Epoch ms when an over-budget session will be force-expired.
-// Anchored to startedAt so the deadline is fixed regardless of activity.
-// Falls back to the sliding idle window for non-exhausted sessions.
+// Epoch ms when the session will expire (lastActivityAt + idle window).
+// Because rejected messages no longer bump lastActivityAt, this is frozen
+// at the last accepted message for over-budget sessions.
 export function sessionResetsAt(userId) {
   const session = getActiveSession(userId);
   if (!session) return null;
-  const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
-  return overBudget
-    ? session.startedAt + SESSION_IDLE_MS
-    : session.lastActivityAt + SESSION_IDLE_MS;
+  return session.lastActivityAt + SESSION_IDLE_MS;
 }
 
 export function getImageBytes(userId, index) {
@@ -143,16 +136,11 @@ export function getSessionSnapshot(userId) {
     };
   }
   const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
-  // Over-budget: expiry is fixed at startedAt + SESSION_IDLE_MS (the original
-  // 1-hour window). Normal sessions use the sliding lastActivityAt anchor.
-  const expiresAt = overBudget
-    ? session.startedAt + SESSION_IDLE_MS
-    : session.lastActivityAt + SESSION_IDLE_MS;
   return {
     active: true,
     startedAt: session.startedAt,
     lastActivityAt: session.lastActivityAt,
-    expiresAt,
+    expiresAt: session.lastActivityAt + SESSION_IDLE_MS,
     tokensUsed: session.tokensUsed,
     tokenBudget: SESSION_TOKEN_BUDGET,
     idleMs: SESSION_IDLE_MS,
