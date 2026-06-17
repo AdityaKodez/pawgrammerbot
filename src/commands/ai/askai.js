@@ -150,6 +150,8 @@ export default {
 
       // Pre-call budget check: if the session is already exhausted, refuse
       // without calling the model and without touching session state.
+      // Do NOT call getOrCreateSession here — that would slide lastActivityAt
+      // and push the reset deadline further into the future.
       if (isOverBudget(message.author.id)) {
         const resetsAt = sessionResetsAt(message.author.id);
         await message.reply(buildLimitReachedMessage(resetsAt));
@@ -319,10 +321,10 @@ export default {
 
 function buildLimitReachedMessage(resetsAt) {
   if (!resetsAt) {
-    return "Session limit reached (20,000 tokens). Your session will reset after 1 hour of inactivity.";
+    return "Session limit reached (20,000 tokens). Your session will reset in 1 hour from when it started.";
   }
   const minutes = Math.max(1, Math.ceil((resetsAt - Date.now()) / 60_000));
-  return `Session limit reached (20,000 tokens). Your session resets after 1 hour of inactivity — about ${minutes} minute${minutes === 1 ? "" : "s"} from now if you stop messaging.`;
+  return `Session limit reached (20,000 tokens). Your session resets in about ${minutes} minute${minutes === 1 ? "" : "s"}.`;
 }
 
 async function downloadImages(attachments) {

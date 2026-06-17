@@ -11,7 +11,11 @@ export const SESSION_TOKEN_BUDGET = 20_000;
 const sessions = new Map();
 
 function isExpired(session, now = Date.now()) {
-  return now - session.lastActivityAt > SESSION_IDLE_MS;
+  // Over-budget sessions expire based on startedAt (fixed deadline).
+  // Normal sessions use the sliding lastActivityAt window.
+  const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
+  const anchor = overBudget ? session.startedAt : session.lastActivityAt;
+  return now - anchor > SESSION_IDLE_MS;
 }
 
 function createSession(now) {
@@ -106,12 +110,16 @@ export function isOverBudget(userId) {
   return session.tokensUsed >= SESSION_TOKEN_BUDGET;
 }
 
-// Epoch ms when the current session will expire if no further messages
-// arrive. Null if no active session.
+// Epoch ms when an over-budget session will be force-expired.
+// Anchored to startedAt so the deadline is fixed regardless of activity.
+// Falls back to the sliding idle window for non-exhausted sessions.
 export function sessionResetsAt(userId) {
   const session = getActiveSession(userId);
   if (!session) return null;
-  return session.lastActivityAt + SESSION_IDLE_MS;
+  const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
+  return overBudget
+    ? session.startedAt + SESSION_IDLE_MS
+    : session.lastActivityAt + SESSION_IDLE_MS;
 }
 
 export function getImageBytes(userId, index) {
