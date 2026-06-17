@@ -142,16 +142,22 @@ export function getSessionSnapshot(userId) {
       idleMs: SESSION_IDLE_MS,
     };
   }
+  const overBudget = session.tokensUsed >= SESSION_TOKEN_BUDGET;
+  // Over-budget: expiry is fixed at startedAt + SESSION_IDLE_MS (the original
+  // 1-hour window). Normal sessions use the sliding lastActivityAt anchor.
+  const expiresAt = overBudget
+    ? session.startedAt + SESSION_IDLE_MS
+    : session.lastActivityAt + SESSION_IDLE_MS;
   return {
     active: true,
     startedAt: session.startedAt,
     lastActivityAt: session.lastActivityAt,
-    expiresAt: session.lastActivityAt + SESSION_IDLE_MS,
+    expiresAt,
     tokensUsed: session.tokensUsed,
     tokenBudget: SESSION_TOKEN_BUDGET,
     idleMs: SESSION_IDLE_MS,
     messageCount: session.messages.length,
     imageCount: session.images.length,
-    overBudget: session.tokensUsed >= SESSION_TOKEN_BUDGET,
+    overBudget,
   };
 }
